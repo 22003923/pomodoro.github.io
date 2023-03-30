@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #5c6b84;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .title {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #8188a7;
+        }
+        .timer {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #8188a7;
+        }
+
+        .buttons button {
+            font-size: 16px;
+            color: #8188a7;
+            padding: 10px 20px;
+            margin: 0 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 25px;
+            background-color: #2e2748;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #8188a7;
+            padding: 20px;
+            color: #2e2748;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+
+        .modal-content label {
+            color: #5c6b84;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="title">POMODORO TIMER</div>
+    <div id="timer" class="timer">00:00</div>
+    <div class="buttons">
+        <button id="setTime">Set Study Time</button>
+        <button id="setBreakTime">Set Break Time</button>
+        <button id="startPause">Start</button>
+        <button id="restartTime">Restart</button>
+    </div>
+</div>
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <label for="hours">Hours:</label>
+        <select id="hours"></select>
+        <label for="minutes">Minutes:</label>
+        <select id="minutes"></select>
+        <button id="submitTime">Set Time</button>
+    </div>
+    <div id="youtubePlayer" style="display:none;"></div>
+</div>
+<audio id="timerAlert" src="https://www.soundjay.com/misc/sounds/dream-harp-06.mp3" preload="auto"></audio>
+<audio id="restartAlert" src="https://www.soundjay.com/misc/sounds/fail-trumpet-01.mp3" preload="auto"></audio>
+<script>
+    const timerDisplay = document.getElementById("timer");
+    const setTimeButton = document.getElementById("setTime");
+    const setBreakTimeButton = document.getElementById("setBreakTime");
+    const startPauseButton = document.getElementById("startPause");
+    const restartTimerButton = document.getElementById("restartTime");
+    const timerAlert = document.getElementById("timerAlert");
+    const modal = document.getElementById("modal");
+    const hoursSelect = document.getElementById("hours");
+    const minutesSelect = document.getElementById("minutes");
+    const submitTimeButton = document.getElementById("submitTime");
+    let countdown;
+    let timeLeft;
+    let initialTime;
+    let breakTime;
+    let isStudyTime = true;
+
+    function displayTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const remainingMinutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+        timerDisplay.textContent = `${hours.toString().padStart(2, "0")}:${remainingMinutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+    }
+
+
+    function startCountdown() {
+        clearInterval(countdown);
+
+        countdown = setInterval(() => {
+            timeLeft--;
+            displayTime(timeLeft);
+
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                timerAlert.play();
+                isStudyTime = !isStudyTime;
+                if (isStudyTime) {
+                    timeLeft = initialTime;
+                } else {
+                    timeLeft = breakTime;
+                }
+                startCountdown();
+            }
+        }, 1000);
+    }
+
+    function pauseCountdown() {
+        clearInterval(countdown);
+    }
+
+    function restartCountdown() {
+        restartAlert.play();
+        timeLeft = initialTime;
+        displayTime(timeLeft);
+        pauseCountdown();
+        startPauseButton.textContent = "Start";
+        startPauseButton.disabled = false;
+        isStudyTime = true;
+    }
+
+    function toggleCountdown() {
+        if (startPauseButton.textContent === "Start") {
+            playYoutubeAudio();
+            startCountdown();
+            startPauseButton.textContent = "Pause";
+        } else {
+            pauseCountdown();
+            pauseYoutubeAudio();
+            startPauseButton.textContent = "Start";
+
+        }
+    }
+
+    function openModal(isSettingStudyTime) {
+        modal.style.display = "block";
+        submitTimeButton.onclick = () => {
+            const hours = parseInt(hoursSelect.value);
+            const minutes = parseInt(minutesSelect.value);
+            const time = (hours * 60 + minutes) * 60;
+
+            if (isSettingStudyTime) {
+                initialTime = time;
+                timeLeft = initialTime;
+
+            } else {
+                breakTime = time;
+            }
+
+            displayTime(timeLeft);
+            startPauseButton.disabled = false;
+            modal.style.display = "none";
+        };
+    }
+
+    let player;
+    let isPlayerReady = false;
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('youtubePlayer', {
+            height: '0',
+            width: '0',
+            videoId: '62d2QvWAVt4',
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerReady(event) {
+        isPlayerReady = true;
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.ENDED) {
+            player.seekTo(0);
+            player.playVideo();
+        }
+    }
+
+    function playYoutubeAudio() {
+        if (isPlayerReady) {
+            player.playVideo();
+        } else {
+            setTimeout(playYoutubeAudio, 1000);
+        }
+    }
+
+    function pauseYoutubeAudio() {
+        if (isPlayerReady) {
+            player.pauseVideo();
+        }
+    }
+
+    function toggleCountdownAndAudio() {
+        toggleCountdown();
+        if (startPauseButton.textContent === "Pause") {
+            playYoutubeAudio();
+        } else {
+            pauseYoutubeAudio();
+        }
+    }
+
+    function populateTimeSelect() {
+        for (let i = 0; i < 24; i++) {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = i.toString().padStart(2, "0");
+            hoursSelect.appendChild(option);
+        }
+
+        for (let i = 0; i < 60; i++) {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = i.toString().padStart(2, "0");
+            minutesSelect.appendChild(option);
+        }
+    }
+
+    setTimeButton.addEventListener("click", () => openModal(true));
+    setBreakTimeButton.addEventListener("click", () => openModal(false));
+    restartTimerButton.addEventListener("click", restartCountdown);
+    startPauseButton.addEventListener("click", toggleCountdown);
+    //startPauseButton.addEventListener("click",toggleCountdownAndAudio);
+
+    window.onclick = (event) => {
+        if (event.target === modal) {
+            modal.style.display = "none";
+        }
+    };
+    populateTimeSelect();
+</script>
+</body>
+</html>
